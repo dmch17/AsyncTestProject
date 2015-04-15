@@ -10,7 +10,7 @@ namespace AsyncTestProject
     class FileDownloader : IAsyncDownloader
     {
         private static readonly int singleStep = 500;
-        private static readonly Object syncObj = new Object();
+        private readonly Object syncObj = new Object();
 
         public Task<byte[]> DownloadAsync(string url)
         {

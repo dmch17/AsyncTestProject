@@ -10,6 +10,7 @@ namespace AsyncTestProject
 {
     class FileDownloadExecutor
     {
+        private readonly Object syncObject = new Object();
         private readonly FileDownloader fileDownloader = new FileDownloader();
         private readonly ConcurrentQueue<String> queue = new ConcurrentQueue<string>();
         private readonly ConcurrentDictionary<String, byte[]> results = new ConcurrentDictionary<String, byte[]>();
@@ -22,25 +23,26 @@ namespace AsyncTestProject
         }
 
         public async void AddNewDownload(String url)
-        { 
-            if (queue.IsEmpty)
+        {
+            lock(syncObject)
             {
-                queue.Enqueue(url);
-                Console.WriteLine("Url {0} was added to the queue.", url);
-                while(!queue.IsEmpty)
+                if (!queue.IsEmpty)
                 {
-                    String currentUrl = null;
-                    Boolean isAbleToExtract = queue.TryPeek(out currentUrl);
-                    Console.WriteLine("Download of {0} starts.", currentUrl);
-                    results.TryAdd(String.Concat(++downloadCounter, ". ", currentUrl), await fileDownloader.DownloadAsync(currentUrl));
-                    Console.WriteLine("Download of {0} ends.", currentUrl);
-                    isAbleToExtract = queue.TryDequeue(out currentUrl);
+                    queue.Enqueue(url);
+                    Console.WriteLine("Url {0} was added to the queue.", url);
+                    return;
                 }
             }
-            else
+            queue.Enqueue(url);
+            Console.WriteLine("Url {0} was added to the queue.", url);
+            while (!queue.IsEmpty)
             {
-                queue.Enqueue(url);
-                Console.WriteLine("Url {0} was added to the queue.", url);
+                String currentUrl = null;
+                Boolean isAbleToExtract = queue.TryPeek(out currentUrl);
+                Console.WriteLine("Download of {0} starts.", currentUrl);
+                results.TryAdd(String.Concat(++downloadCounter, ". ", currentUrl), await fileDownloader.DownloadAsync(currentUrl));
+                Console.WriteLine("Download of {0} ends.", currentUrl);
+                lock (syncObject) { isAbleToExtract = queue.TryDequeue(out currentUrl); }
             }
         }
 
