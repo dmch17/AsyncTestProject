@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -9,10 +10,15 @@ namespace AsyncTestProject
     class Program
     {
         private static readonly FileDownloadExecutor fileDownloadExecutor = new FileDownloadExecutor();
+        private static readonly ConcurrentQueue<String> queue = new ConcurrentQueue<string>();
+        private static readonly ConcurrentDictionary<String, byte[]> results = new ConcurrentDictionary<String, byte[]>();
+        private static readonly Object syncObject = new Object();
         private static readonly String yesAnswer = "y";
         private static readonly String noAnswer = "n";
         private static readonly String resultAnswer = "r";
         private static readonly String userInputMessage = "Do you want to download a file? y/n Or get current download results? r";
+
+        private static int downloadCounter = 0;
 
         static void Main(string[] args)
         {
@@ -22,9 +28,9 @@ namespace AsyncTestProject
             {
                 if (userInput == UserInput.Yes)
                 {
-                    fileDownloadExecutor.AddNewDownload(generateRandomString());
+                    PerformDownload(generateRandomString());
                 }
-                else if(userInput == UserInput.CurrentResult)
+                else if (userInput == UserInput.CurrentResult)
                 {
                     ShowResults();
                 }
@@ -35,16 +41,40 @@ namespace AsyncTestProject
                 Console.WriteLine(userInputMessage);
             }
             Console.WriteLine("Waiting for all downloads to be completed...");
-            while (!fileDownloadExecutor.isAllDownloadsCompleted()) { }
+            while (!queue.IsEmpty) { }
             Console.WriteLine("Downloads result listing:");
             ShowResults();
             Console.WriteLine("Ending of main thread.");
             Console.ReadKey();
         }
 
+        private static async void PerformDownload(String url)
+        {
+            lock (syncObject)
+            {
+                if(!queue.IsEmpty)
+                {
+                    queue.Enqueue(url);
+                    Console.WriteLine("Url {0} was added to the queue.", url);
+                    return;
+                }
+            }
+            queue.Enqueue(url);
+            Console.WriteLine("Url {0} was added to the queue.", url);
+            while (!queue.IsEmpty)
+            {
+                String currentUrl = null;
+                queue.TryPeek(out currentUrl);
+                Console.WriteLine("Download of {0} starts.", currentUrl);
+                results.TryAdd(String.Concat(++downloadCounter, ". ", currentUrl), await fileDownloadExecutor.DownloadAsync(currentUrl));
+                Console.WriteLine("Download of {0} ends.", currentUrl);
+                lock (syncObject) { queue.TryDequeue(out currentUrl); }
+            }
+        }
+
         private static void ShowResults()
         {
-            foreach (var currentDownload in fileDownloadExecutor.Results.OrderBy(item => item.Key))
+            foreach (var currentDownload in results.OrderBy(item => item.Key))
             {
                 Console.WriteLine(String.Format("url: {0}; result: {1};", currentDownload.Key, String.Join(" ", currentDownload.Value)));
             }

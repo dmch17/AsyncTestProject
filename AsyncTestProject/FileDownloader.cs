@@ -7,28 +7,20 @@ using System.Threading.Tasks;
 
 namespace AsyncTestProject
 {
-    class FileDownloader : IAsyncDownloader
+    class FileDownloader
     {
         private static readonly int singleStep = 500;
-        private readonly Object syncObj = new Object();
 
-        public Task<byte[]> DownloadAsync(string url)
+        public byte[] Download(string url)
         {
-            lock(syncObj)
+            List<byte> result = new List<byte>();
+            Random randomizer = new Random();
+            for (int currentByte = randomizer.Next(1, 6); currentByte > 0; currentByte--)
             {
-                List<byte> result = new List<byte>();
-                Random randomizer = new Random();
-                return Task.Factory.StartNew(() =>
-                {
-                    for (int currentByte = randomizer.Next(1, 6); currentByte > 0; currentByte--)
-                    {
-                        result.Add((Byte)randomizer.Next(Byte.MinValue, Byte.MaxValue));
-                    }
-                    Thread.Sleep(url.Length * FileDownloader.singleStep);
-                    return result.ToArray<byte>();
-                });
+                result.Add((Byte)randomizer.Next(Byte.MinValue, Byte.MaxValue));
             }
-            
+            Thread.Sleep(url.Length * FileDownloader.singleStep);
+            return result.ToArray<byte>();
         }
     }
 }
